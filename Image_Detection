@@ -1,0 +1,176 @@
+import cv2
+import os
+import tkinter as tk
+from tkinter import filedialog
+
+# Create a tkinter root window (it will not be shown)
+root = tk.Tk()
+root.withdraw()
+
+# Open file dialog to select reference image
+reference_path = filedialog.askopenfilename(initialdir="/Users/hrishijoshi/Desktop/URAP_Research/new_images",
+                                           title="Select Reference Image",
+                                           filetypes=(("Image files", "*.jpg;*.jpeg;*.png;*.bmp"), ("All files", "*.*")))
+if not reference_path:
+    print("No reference image selected. Exiting...")
+    exit(0)
+
+# Open file dialog to select pairing image
+pairing_path = filedialog.askopenfilename(initialdir="/Users/hrishijoshi/Desktop/URAP_Research/new_images",
+                                         title="Select Pairing Image",
+                                         filetypes=(("Image files", "*.jpg;*.jpeg;*.png;*.bmp"), ("All files", "*.*")))
+if not pairing_path:
+    print("No pairing image selected. Exiting...")
+    exit(0)
+
+# Load the reference and pairing images
+reference_img = cv2.imread(reference_path)
+pairing_img = cv2.imread(pairing_path)
+
+# Extract the date and time from the image filenames
+reference_filename = os.path.basename(reference_path)
+pairing_filename = os.path.basename(pairing_path)
+reference_date = reference_filename.split(".")[2]
+reference_time = reference_filename.split(".")[3]
+pairing_date = pairing_filename.split(".")[2]
+pairing_time = pairing_filename.split(".")[3]
+
+# Convert the images to grayscale
+reference_gray = cv2.cvtColor(reference_img, cv2.COLOR_BGR2GRAY)
+pairing_gray = cv2.cvtColor(pairing_img, cv2.COLOR_BGR2GRAY)
+
+# Let the user select a 100x100 portion of the images
+reference_roi = cv2.selectROI(reference_img)
+pairing_roi = cv2.selectROI(pairing_img)
+
+# Crop the images to the selected region of interest
+reference_crop = reference_gray[int(reference_roi[1]):int(reference_roi[1]+reference_roi[3]),
+                                int(reference_roi[0]):int(reference_roi[0]+reference_roi[2])]
+pairing_crop = pairing_gray[int(pairing_roi[1]):int(pairing_roi[1]+pairing_roi[3]),
+                            int(pairing_roi[0]):int(pairing_roi[0]+pairing_roi[2])]
+
+# Create SIFT object
+sift = cv2.xfeatures2d.SIFT_create()
+
+# Detect keypoints and compute descriptors for the cropped images
+reference_keypoints, reference_descriptors = sift.detectAndCompute(reference_crop, None)
+pairing_keypoints, pairing_descriptors = sift.detectAndCompute(pairing_crop, None)
+
+# Create BFMatcher object
+bf_matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
+
+# Match the feature points using the brute-force matching algorithm
+matches = bf_matcher.match(reference_descriptors, pairing_descriptors)
+
+# Sort the matches by distance
+matches = sorted(matches, key=lambda x: x.distance)
+
+# Take only the top 30 matches
+matches = matches[:30]
+
+# Draw the top 30 matches between the images
+matching_img = cv2.drawMatches(reference_crop, reference_keypoints, pairing_crop, pairing_keypoints, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+
+# Get the ROI top-left coordinates for both images
+reference_roi_x, reference_roi_y, _, _ = reference_roi
+pairing_roi_x, pairing_roi_y, _, _ = pairing_roi
+
+# Write matching points' coordinates, date, and time to output text file
+with open("/Users/hrishijoshi/Desktop/URAP_Research/matching_points.txt", "w") as f:
+    f.write("date_ref, time_ref, x_ref, y_ref, x_pair, y_pair\n")
+    for match in matches:
+        # Get the coordinates of the matching feature points
+        x_ref_roi, y_ref_roi = reference_keypoints[match.queryIdx].pt
+        x_pair_roi, y_pair_roi = pairing_keypoints[match.trainIdx].pt
+        
+        # Shift the coordinates to the position relative to the whole image
+        x_ref = int(x_ref_roi + reference_roi_x)
+        y_ref = int(y_ref_roi + reference_roi_y)
+        x_pair = int(x_pair_roi + pairing_roi_x)
+        y_pair = int(y_pair_roi + pairing_roi_y)
+
+        f.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(reference_date, reference_time, x_ref, y_ref, x_pair, y_pair))
+
+print("Top 30 matching points' coordinates written to matching_points.txt")
+
+# Display the resulting image
+cv2.imshow("Matching result", matching_img)
+cv2.waitKey(0)
+
+""" 
+import cv2
+import os
+import tkinter as tk
+from tkinter import filedialog
+
+# Create a tkinter root window (it will not be shown)
+root = tk.Tk()
+root.withdraw()
+
+# Open file dialog to select reference image
+reference_path = filedialog.askopenfilename(initialdir="/Users/hrishijoshi/Desktop/URAP_Research/new_images",
+                                           title="Select Reference Image",
+                                           filetypes=(("Image files", "*.jpg;*.jpeg;*.png;*.bmp"), ("All files", "*.*")))
+if not reference_path:
+    print("No reference image selected. Exiting...")
+    exit(0)
+
+# Open file dialog to select pairing image
+pairing_path = filedialog.askopenfilename(initialdir="/Users/hrishijoshi/Desktop/URAP_Research/new_images",
+                                         title="Select Pairing Image",
+                                         filetypes=(("Image files", "*.jpg;*.jpeg;*.png;*.bmp"), ("All files", "*.*")))
+if not pairing_path:
+    print("No pairing image selected. Exiting...")
+    exit(0)
+
+# Load the reference and pairing images
+reference_img = cv2.imread(reference_path)
+pairing_img = cv2.imread(pairing_path)
+
+# Extract the date and time from the image filenames
+reference_filename = os.path.basename(reference_path)
+pairing_filename = os.path.basename(pairing_path)
+reference_date = reference_filename.split(".")[2]
+reference_time = reference_filename.split(".")[3]
+pairing_date = pairing_filename.split(".")[2]
+pairing_time = pairing_filename.split(".")[3]
+
+# Convert the images to grayscale
+reference_gray = cv2.cvtColor(reference_img, cv2.COLOR_BGR2GRAY)
+pairing_gray = cv2.cvtColor(pairing_img, cv2.COLOR_BGR2GRAY)
+
+# Create SIFT object
+sift = cv2.xfeatures2d.SIFT_create()
+
+# Detect keypoints and compute descriptors for the images
+reference_keypoints, reference_descriptors = sift.detectAndCompute(reference_gray, None)
+pairing_keypoints, pairing_descriptors = sift.detectAndCompute(pairing_gray, None)
+
+# Create BFMatcher object
+bf_matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
+
+# Match the feature points using the brute-force matching algorithm
+matches = bf_matcher.match(reference_descriptors, pairing_descriptors)
+
+# Sort the matches by distance
+matches = sorted(matches, key=lambda x: x.distance)
+
+# Take only the top 30 matches
+matches = matches[:30]
+
+# Draw the top 30 matches between the images
+matching_img = cv2.drawMatches(reference_gray, reference_keypoints, pairing_gray, pairing_keypoints, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+
+# Write matching points' coordinates, date, and time to output text file
+with open("/Users/hrishijoshi/Desktop/URAP_Research/matching_points.txt", "w") as f:
+    f.write("date_ref, time_ref, x_ref, y_ref, x_pair, y_pair\n")
+    for match in matches:
+        x_ref, y_ref = reference_keypoints[match.queryIdx].pt
+        x_pair, y_pair = pairing_keypoints[match.trainIdx].pt
+        f.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(reference_date, reference_time, x_ref, y_ref, x_pair, y_pair))
+
+print("Top 30 matching points' coordinates written to matching_points.txt")
+
+# Display the resulting image
+cv2.imshow("Matching result", matching_img)
+cv2.waitKey(0) """
